@@ -1,10 +1,10 @@
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import EmptyState from "./EmptyState";
 import QuestHeader from "./QuestHeader";
 import SubmissionCard from "./SubmissionCard";
 import TaskInfo from "./TaskInfo";
-import { Icon } from "@iconify/react";
 import { Submission, Quest } from "@/app/hooks/useQuestData";
 
 export default function CreatorQuestDetail({
@@ -20,30 +20,36 @@ export default function CreatorQuestDetail({
 }) {
   const router = useRouter();
   const [approvedSubmissions, setApprovedSubmissions] = useState<string[]>([]);
+  const [rejectedSubmissions, setRejectedSubmissions] = useState<string[]>([]);
+  const [rejectConfirm, setRejectConfirm] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
-  const handleApprove = async (submissionId: string) => {
+  const handleApprove = (submissionId: string) => {
     setApprovedSubmissions((prev) => {
       if (prev.includes(submissionId)) {
         return prev.filter((id) => id !== submissionId);
-      } else {
-        return [...prev, submissionId];
       }
+      return [...prev, submissionId];
     });
+    setRejectedSubmissions((prev) => prev.filter((id) => id !== submissionId));
+  };
 
-    try {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/submissions/${submissionId}/approve`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      // });
-      // if (response.ok) {
-      //   console.log(`Submission ${submissionId} approved`);
-      // }
-      
-      console.log(`Approval toggled for submission: ${submissionId}`);
-    } catch (error) {
-      console.error("Error approving submission:", error);
-    }
+  const handleReject = (submissionId: string) => {
+    setRejectedSubmissions((prev) => {
+      if (prev.includes(submissionId)) {
+        return prev.filter((id) => id !== submissionId);
+      }
+      return [...prev, submissionId];
+    });
+    setApprovedSubmissions((prev) => prev.filter((id) => id !== submissionId));
+    setRejectConfirm(null);
+    setRejectReason("");
+  };
+
+  const getEffectiveStatus = (sub: Submission): Submission["status"] => {
+    if (rejectedSubmissions.includes(sub.id)) return "rejected";
+    if (approvedSubmissions.includes(sub.id)) return "approved";
+    return sub.status;
   };
 
   const handleEditQuest = () => {
@@ -94,9 +100,11 @@ export default function CreatorQuestDetail({
           </div>
           <div className=" border-r border-b border-[#241B4A] flex flex-col gap-2 items-start text-white p-2 py-6">
             <div className="flex items-center gap-2">
-              <img
+              <Image
                 src="/quest-detail/stellar-icon.png"
-                alt=""
+                alt="Stellar"
+                width={24}
+                height={24}
                 className="size-6"
               />
               <h2 className="text-2xl font-semibold">{quest?.reward || 640} XLM</h2>
@@ -157,12 +165,42 @@ export default function CreatorQuestDetail({
               <EmptyState message="No submissions yet." />
             ) : (
               submissions.map((sub) => (
-                <SubmissionCard
-                  key={sub.id}
-                  submission={sub}
-                  onApprove={() => handleApprove(sub.id)}
-                  isApproved={approvedSubmissions.includes(sub.id)}  
-                />
+                <div key={sub.id}>
+                  <SubmissionCard
+                    submission={{ ...sub, status: getEffectiveStatus(sub) }}
+                    onApprove={() => handleApprove(sub.id)}
+                    onReject={() => setRejectConfirm(sub.id)}
+                    isApproved={approvedSubmissions.includes(sub.id)}
+                  />
+                  {rejectConfirm === sub.id && (
+                    <div className="mx-4 mb-4 bg-[#1A1330] border border-red-500/30 rounded-xl p-4">
+                      <p className="text-sm text-[#CFC9FF] mb-3">
+                        Are you sure you want to reject this submission?
+                      </p>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Optional reason for rejection…"
+                        rows={2}
+                        className="w-full bg-[#1B1540] border border-[#241B4A] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-red-400 resize-none mb-3"
+                      />
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleReject(sub.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Confirm Reject
+                        </button>
+                        <button
+                          onClick={() => { setRejectConfirm(null); setRejectReason(""); }}
+                          className="border border-[#241B4A] hover:bg-[#1B1540] text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ))
             )}
           </div>
